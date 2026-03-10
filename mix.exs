@@ -2,7 +2,7 @@ defmodule Jobcelis.MixProject do
   use Mix.Project
 
   @version "1.2.1"
-  @source_url "https://github.com/vladimirCeli/jobcelis-elixir"
+  @source_url "https://github.com/jobcelis-team/jobcelis-elixir"
 
   def project do
     [
