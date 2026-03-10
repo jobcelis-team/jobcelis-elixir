@@ -121,6 +121,10 @@ defmodule Jobcelis.Client do
     get(client, "/api/v1/webhooks/templates")
   end
 
+  def test_webhook(%__MODULE__{} = client, webhook_id) do
+    post(client, "/api/v1/webhooks/#{webhook_id}/test", %{})
+  end
+
   # ---------------------------------------------------------------------------
   # Deliveries
   # ---------------------------------------------------------------------------
@@ -458,6 +462,62 @@ defmodule Jobcelis.Client do
   end
 
   # ---------------------------------------------------------------------------
+  # Embed Tokens
+  # ---------------------------------------------------------------------------
+
+  def list_embed_tokens(%__MODULE__{} = client) do
+    get(client, "/api/v1/embed/tokens")
+  end
+
+  def create_embed_token(%__MODULE__{} = client, config) do
+    post(client, "/api/v1/embed/tokens", config)
+  end
+
+  def revoke_embed_token(%__MODULE__{} = client, id) do
+    do_delete(client, "/api/v1/embed/tokens/#{id}")
+  end
+
+  # ---------------------------------------------------------------------------
+  # Notification Channels
+  # ---------------------------------------------------------------------------
+
+  def get_notification_channel(%__MODULE__{} = client) do
+    get(client, "/api/v1/notification-channels")
+  end
+
+  def upsert_notification_channel(%__MODULE__{} = client, config) do
+    put(client, "/api/v1/notification-channels", config)
+  end
+
+  def delete_notification_channel(%__MODULE__{} = client) do
+    do_delete(client, "/api/v1/notification-channels")
+  end
+
+  def test_notification_channel(%__MODULE__{} = client) do
+    post(client, "/api/v1/notification-channels/test", %{})
+  end
+
+  # ---------------------------------------------------------------------------
+  # Retention & Purge
+  # ---------------------------------------------------------------------------
+
+  def get_retention_policy(%__MODULE__{} = client) do
+    get(client, "/api/v1/retention")
+  end
+
+  def update_retention_policy(%__MODULE__{} = client, policy) do
+    patch(client, "/api/v1/retention", policy)
+  end
+
+  def preview_purge(%__MODULE__{} = client, params) do
+    post(client, "/api/v1/purge/preview", params)
+  end
+
+  def purge_data(%__MODULE__{} = client, params) do
+    post(client, "/api/v1/purge", params)
+  end
+
+  # ---------------------------------------------------------------------------
   # Health
   # ---------------------------------------------------------------------------
 
@@ -479,6 +539,10 @@ defmodule Jobcelis.Client do
 
   defp post(%__MODULE__{} = client, path, body) do
     request(client, :post, path, body: body)
+  end
+
+  defp put(%__MODULE__{} = client, path, body) do
+    request(client, :put, path, body: body)
   end
 
   defp patch(%__MODULE__{} = client, path, body) do
