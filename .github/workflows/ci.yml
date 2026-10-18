@@ -1,0 +1,27 @@
+# Builds and checks every pull request (Dependabot's too) the same way Release
+# does before publishing, so a change that would break the release fails here.
+name: CI
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "27"
+          elixir-version: "1.17"
+
+      - name: Compile
+        run: mix deps.get && mix compile --warnings-as-errors
+
+      - name: Build the Hex package
+        run: mix hex.build
