@@ -362,3 +362,7 @@ end
 ## License
 
 BSL-1.1 (Business Source License)
+
+## Releasing
+
+Bump the version in `mix.exs` and merge to `main`. The [Release workflow](.github/workflows/release.yml) publishes it to Hex.pm and tags the commit. Changes that do not bump the version publish nothing.

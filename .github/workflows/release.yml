@@ -1,0 +1,83 @@
+# Publishes automatically when the version below changes on main:
+#   1. reads the version from mix.exs
+#   2. if Hex.pm does not have it yet, compiles it and publishes it
+#   3. tags the commit (vX.Y.Z)
+# Bump the version in mix.exs to release; any other change publishes nothing.
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read version
+        id: v
+        run: |
+          VERSION=$(grep -m1 '@version "' mix.exs | sed -E 's/.*"([^"]+)".*/\1/')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Version: $VERSION"
+
+      - name: Already released?
+        id: check
+        env:
+          HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
+        run: |
+          MISSING=""
+          [ -n "$HEX_API_KEY" ] || MISSING="$MISSING HEX_API_KEY"
+          if [ -n "$MISSING" ]; then
+            echo "::warning::Not publishing: add the repository secret(s)$MISSING, then run this workflow again (Actions > Release > Run workflow)."
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          CODE=$(curl -s -o /dev/null -w "%{http_code}" "https://hex.pm/api/packages/jobcelis/releases/${{ steps.v.outputs.version }}")
+          if [ "$CODE" = "200" ]; then
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            echo "${{ steps.v.outputs.version }} is already published: nothing to do"
+          else
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: erlef/setup-beam@v1
+        if: steps.check.outputs.release == 'true'
+        with:
+          otp-version: "27"
+          elixir-version: "1.17"
+
+      - name: Compile
+        if: steps.check.outputs.release == 'true'
+        run: mix deps.get && mix compile --warnings-as-errors
+
+      - name: Publish to Hex.pm
+        if: steps.check.outputs.release == 'true'
+        env:
+          HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
+        run: mix hex.publish --yes
+
+      - name: Tag the release
+        if: steps.check.outputs.release == 'true'
+        run: |
+          TAG="${{ steps.v.outputs.tag }}"
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null; then
+            echo "Tag $TAG already exists"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag -a "$TAG" -m "$TAG"
+            git push origin "$TAG"
+          fi
