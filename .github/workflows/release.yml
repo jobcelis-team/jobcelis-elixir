@@ -1,8 +1,11 @@
-# Publishes automatically when the version below changes on main:
-#   1. reads the version from mix.exs
-#   2. if Hex.pm does not have it yet, compiles it and publishes it
-#   3. tags the commit (vX.Y.Z)
-# Bump the version in mix.exs to release; any other change publishes nothing.
+# Publishes automatically on every push to main that changes the package:
+#   1. next-version (jobcelis-team/.github) picks the version: the last release
+#      plus a patch, or the version in mix.exs when it was raised by hand.
+#      Docs, tests, CI and repo config release nothing.
+#   2. writes it into mix.exs and commits it locally
+#   3. compiles it and publishes it to Hex.pm
+#   4. pushes the version commit and tags vX.Y.Z
+# To release a minor or major version, raise it in mix.exs.
 name: Release
 
 on:
@@ -26,15 +29,35 @@ jobs:
           fetch-depth: 0
 
       - name: Read version
-        id: v
+        id: current
         run: |
           VERSION=$(grep -m1 '@version "' mix.exs | sed -E 's/.*"([^"]+)".*/\1/')
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
           echo "Version: $VERSION"
+
+      - name: Next version
+        id: v
+        uses: jobcelis-team/.github/actions/next-version@main
+        with:
+          current: ${{ steps.current.outputs.version }}
+          tag-prefix: "v"
+
+      - name: Write the version
+        if: steps.v.outputs.release == 'true'
+        env:
+          VERSION: ${{ steps.v.outputs.version }}
+        run: |
+          sed -i -E 's/@version "[^"]+"/@version "'"$VERSION"'"/' mix.exs
+
+      - name: Commit the version
+        if: steps.v.outputs.release == 'true'
+        uses: jobcelis-team/.github/actions/commit-version@main
+        with:
+          version: ${{ steps.v.outputs.version }}
 
       - name: Already released?
         id: check
+        if: steps.v.outputs.release == 'true'
         env:
           HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
         run: |
@@ -49,6 +72,7 @@ jobs:
           if [ "$CODE" = "200" ]; then
             echo "release=false" >> "$GITHUB_OUTPUT"
             echo "${{ steps.v.outputs.version }} is already published: nothing to do"
+            echo "published=true" >> "$GITHUB_OUTPUT"
           else
             echo "release=true" >> "$GITHUB_OUTPUT"
           fi
@@ -69,15 +93,8 @@ jobs:
           HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
         run: mix hex.publish --yes
 
-      - name: Tag the release
-        if: steps.check.outputs.release == 'true'
-        run: |
-          TAG="${{ steps.v.outputs.tag }}"
-          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null; then
-            echo "Tag $TAG already exists"
-          else
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git tag -a "$TAG" -m "$TAG"
-            git push origin "$TAG"
-          fi
+      - name: Push the version and tag the release
+        if: steps.v.outputs.release == 'true' && (steps.check.outputs.release == 'true' || steps.check.outputs.published == 'true')
+        uses: jobcelis-team/.github/actions/push-release@main
+        with:
+          tag: ${{ steps.v.outputs.tag }}

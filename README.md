@@ -365,4 +365,4 @@ BSL-1.1 (Business Source License)
 
 ## Releasing
 
-Bump the version in `mix.exs` and merge to `main`. The [Release workflow](.github/workflows/release.yml) publishes it to Hex.pm and tags the commit. Changes that do not bump the version publish nothing.
+Merge to `main`: the [Release workflow](.github/workflows/release.yml) publishes every change to the package as the next patch version (1.3.1 → 1.3.2) to Hex.pm, writes the version into `mix.exs` and tags the commit. Changes to docs, tests or CI publish nothing. For a minor or major version, raise it in `mix.exs` in the same pull request. Every pull request runs [CI](.github/workflows/ci.yml).
