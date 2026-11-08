@@ -23,5 +23,8 @@ jobs:
       - name: Compile
         run: mix deps.get && mix compile --warnings-as-errors
 
+      - name: Test
+        run: mix test
+
       - name: Build the Hex package
         run: mix hex.build
