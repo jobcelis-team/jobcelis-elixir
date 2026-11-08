@@ -25,11 +25,16 @@ defmodule Jobcelis do
 
     * `:base_url` - Base URL of the Jobcelis API (default: `"https://jobcelis.com"`)
     * `:finch_name` - Name of the Finch pool to use (default: `Jobcelis.Finch`)
+    * `:max_retries` - Retries for network errors and 429/502/503/504 responses
+      (default: `6`, about 60 s in total). `0` disables retries.
+    * `:retry_base_delay` - Delay in milliseconds before the first retry, doubled
+      on each following one up to 30 s (default: `1000`)
 
   ## Examples
 
       client = Jobcelis.client("your_api_key")
       client = Jobcelis.client("your_api_key", base_url: "https://your-instance.example.com")
+      client = Jobcelis.client("your_api_key", max_retries: 0)
   """
   @spec client(String.t(), keyword()) :: Client.t()
   defdelegate client(api_key, opts \\ []), to: Client, as: :new
@@ -57,10 +62,19 @@ defmodule Jobcelis do
   # Events
   # ---------------------------------------------------------------------------
 
-  @doc "Send a single event."
+  @doc """
+  Send a single event.
+
+  Sends an `X-Idempotency-Key` header so retries never duplicate the event: the
+  `:idempotency_key` option when given, otherwise a generated UUID.
+  """
   defdelegate send_event(client, topic, payload, opts \\ []), to: Client
 
-  @doc "Send up to 1000 events in a batch."
+  @doc """
+  Send up to 1000 events in a batch.
+
+  Events without an `idempotency_key` get a generated one so retries never duplicate them.
+  """
   defdelegate send_events(client, events), to: Client
 
   @doc "Get event details."

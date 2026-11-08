@@ -3,27 +3,58 @@ defmodule Jobcelis.Client do
   HTTP client for the Jobcelis API.
 
   Uses Finch for HTTP requests and Jason for JSON encoding/decoding.
+
+  Network errors and 429/502/503/504 responses are retried with exponential
+  backoff (see the `:max_retries` option of `new/2`).
   """
 
-  defstruct [:api_key, :base_url, :auth_token, :finch_name]
+  defstruct [
+    :api_key,
+    :base_url,
+    :auth_token,
+    :finch_name,
+    max_retries: 6,
+    retry_base_delay: 1_000
+  ]
 
   @type t :: %__MODULE__{
           api_key: String.t(),
           base_url: String.t(),
           auth_token: String.t() | nil,
-          finch_name: atom()
+          finch_name: atom(),
+          max_retries: non_neg_integer(),
+          retry_base_delay: non_neg_integer()
         }
 
   @default_base_url "https://jobcelis.com"
 
-  @doc "Create a new client."
+  # Responses that mean the request was not processed and can be sent again
+  @retryable_statuses [429, 502, 503, 504]
+  @transport_errors [Mint.TransportError, Finch.TransportError]
+  @max_backoff_ms 30_000
+  @max_retry_after_ms 60_000
+
+  @doc """
+  Create a new client.
+
+  ## Options
+
+    * `:base_url` - Base URL of the Jobcelis API (default: `"https://jobcelis.com"`)
+    * `:finch_name` - Name of the Finch pool to use (default: `Jobcelis.Finch`)
+    * `:max_retries` - Retries for network errors and 429/502/503/504 responses
+      (default: `6`, about 60 s in total). `0` disables retries.
+    * `:retry_base_delay` - Delay in milliseconds before the first retry, doubled
+      on each following one up to 30 s (default: `1000`)
+  """
   @spec new(String.t(), keyword()) :: t()
   def new(api_key, opts \\ []) do
     %__MODULE__{
       api_key: api_key,
       base_url: Keyword.get(opts, :base_url, @default_base_url) |> String.trim_trailing("/"),
       auth_token: nil,
-      finch_name: Keyword.get(opts, :finch_name, Jobcelis.Finch)
+      finch_name: Keyword.get(opts, :finch_name, Jobcelis.Finch),
+      max_retries: max(Keyword.get(opts, :max_retries, 6), 0),
+      retry_base_delay: Keyword.get(opts, :retry_base_delay, 1_000)
     }
   end
 
@@ -59,13 +90,17 @@ defmodule Jobcelis.Client do
   # Events
   # ---------------------------------------------------------------------------
 
+  # The request carries an X-Idempotency-Key header so it can be retried safely:
+  # the `:idempotency_key` option when given, otherwise a generated UUID.
   def send_event(%__MODULE__{} = client, topic, payload, opts \\ []) do
     body = Map.merge(%{topic: topic, payload: payload}, Map.new(opts))
-    post(client, "/api/v1/events", body)
+    key = to_string(Keyword.get(opts, :idempotency_key) || uuid4())
+    request(client, :post, "/api/v1/events", body: body, idempotency_key: key)
   end
 
+  # Events without an idempotency_key get a generated one so the batch can be retried safely.
   def send_events(%__MODULE__{} = client, events) do
-    post(client, "/api/v1/events/batch", %{events: events})
+    post(client, "/api/v1/events/batch", %{events: Enum.map(events, &put_idempotency_key/1)})
   end
 
   def get_event(%__MODULE__{} = client, event_id) do
@@ -570,11 +605,8 @@ defmodule Jobcelis.Client do
   defp public_post(%__MODULE__{} = client, path, body) do
     url = build_url(client, path)
     headers = [{"content-type", "application/json"}]
-    body_json = Jason.encode!(body)
 
-    request = Finch.build(:post, url, headers, body_json)
-
-    case Finch.request(request, client.finch_name) do
+    case send_with_retries(client, :post, url, headers, Jason.encode!(body), false) do
       {:ok, %Finch.Response{status: status, body: resp_body}} when status in 200..299 ->
         {:ok, Jason.decode!(resp_body)}
 
@@ -589,14 +621,18 @@ defmodule Jobcelis.Client do
   defp request(%__MODULE__{} = client, method, path, opts \\ []) do
     params = Keyword.get(opts, :params, [])
     body = Keyword.get(opts, :body)
+    idempotency_key = Keyword.get(opts, :idempotency_key)
 
     url = build_url(client, path, params)
     headers = build_headers(client)
+
+    headers =
+      if idempotency_key, do: [{"x-idempotency-key", idempotency_key} | headers], else: headers
+
     body_json = if body, do: Jason.encode!(body), else: nil
+    idempotent = method != :post or idempotency_key != nil
 
-    request = Finch.build(method, url, headers, body_json)
-
-    case Finch.request(request, client.finch_name) do
+    case send_with_retries(client, method, url, headers, body_json, idempotent) do
       {:ok, %Finch.Response{status: 204}} ->
         :ok
 
@@ -616,9 +652,7 @@ defmodule Jobcelis.Client do
     url = build_url(client, path, params)
     headers = build_headers(client)
 
-    request = Finch.build(method, url, headers)
-
-    case Finch.request(request, client.finch_name) do
+    case send_with_retries(client, method, url, headers, nil, method != :post) do
       {:ok, %Finch.Response{status: status, body: body}} when status in 200..299 ->
         {:ok, body}
 
@@ -628,6 +662,99 @@ defmodule Jobcelis.Client do
       {:error, reason} ->
         {:error, %Jobcelis.Error{status: 0, detail: reason}}
     end
+  end
+
+  # Sends the request, retrying network errors and 429/502/503/504 responses with
+  # exponential backoff. Network errors are only retried when the request is
+  # idempotent (not a POST, or a POST with an idempotency key), so a request can
+  # never be applied twice.
+  defp send_with_retries(client, method, url, headers, body, idempotent, attempt \\ 0) do
+    result = Finch.build(method, url, headers, body) |> Finch.request(client.finch_name)
+
+    case retry_delay(client, result, idempotent, attempt + 1) do
+      nil ->
+        result
+
+      delay ->
+        Process.sleep(delay)
+        send_with_retries(client, method, url, headers, body, idempotent, attempt + 1)
+    end
+  end
+
+  # Milliseconds to wait before retry number `attempt` (1-based), or nil to stop.
+  defp retry_delay(%__MODULE__{max_retries: max_retries}, _result, _idempotent, attempt)
+       when attempt > max_retries,
+       do: nil
+
+  defp retry_delay(client, {:ok, %Finch.Response{status: status} = resp}, _idempotent, attempt)
+       when status in @retryable_statuses do
+    retry_after(resp) || backoff(client, attempt)
+  end
+
+  # Connection refused/reset, DNS, TLS and timeout failures (Finch >= 0.20 wraps
+  # Mint's transport error in its own)
+  defp retry_delay(client, {:error, %{__struct__: error}}, true, attempt)
+       when error in @transport_errors,
+       do: backoff(client, attempt)
+
+  defp retry_delay(_client, _result, _idempotent, _attempt), do: nil
+
+  # base * 2^(attempt - 1), capped at 30 s, with +/-20% jitter
+  defp backoff(%__MODULE__{retry_base_delay: base}, attempt) do
+    delay = min(base * Integer.pow(2, attempt - 1), @max_backoff_ms)
+    round(delay * (0.8 + :rand.uniform() * 0.4))
+  end
+
+  # Retry-After in seconds or as an HTTP date, capped at 60 s
+  defp retry_after(%Finch.Response{headers: headers}) do
+    with {_, value} <- List.keyfind(headers, "retry-after", 0),
+         ms when is_integer(ms) <- parse_retry_after(String.trim(value)) do
+      ms |> max(0) |> min(@max_retry_after_ms)
+    else
+      _ -> nil
+    end
+  end
+
+  @months ~w(Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec)
+
+  defp parse_retry_after(value) do
+    case Integer.parse(value) do
+      {seconds, ""} -> seconds * 1_000
+      _ -> parse_http_date(value)
+    end
+  end
+
+  # IMF-fixdate, e.g. "Wed, 21 Oct 2015 07:28:00 GMT"
+  defp parse_http_date(value) do
+    with [_, day, month, year, time] <-
+           Regex.run(~r/^\w{3}, (\d{2}) (\w{3}) (\d{4}) (\d{2}:\d{2}:\d{2}) GMT$/, value),
+         index when is_integer(index) <- Enum.find_index(@months, &(&1 == month)),
+         {:ok, date} <- Date.new(String.to_integer(year), index + 1, String.to_integer(day)),
+         {:ok, time} <- Time.from_iso8601(time),
+         {:ok, datetime} <- DateTime.new(date, time) do
+      DateTime.diff(datetime, DateTime.utc_now(), :millisecond)
+    else
+      _ -> nil
+    end
+  end
+
+  defp put_idempotency_key(event) when is_map(event) do
+    if Map.has_key?(event, :idempotency_key) or Map.has_key?(event, "idempotency_key") do
+      event
+    else
+      Map.put(event, :idempotency_key, uuid4())
+    end
+  end
+
+  defp put_idempotency_key(event), do: event
+
+  # Random (version 4) UUID
+  defp uuid4 do
+    <<a::48, _::4, b::12, _::2, c::62>> = :crypto.strong_rand_bytes(16)
+    <<u0::32, u1::16, u2::16, u3::16, u4::48>> = <<a::48, 4::4, b::12, 2::2, c::62>>
+
+    :io_lib.format("~8.16.0b-~4.16.0b-~4.16.0b-~4.16.0b-~12.16.0b", [u0, u1, u2, u3, u4])
+    |> IO.iodata_to_binary()
   end
 
   defp build_url(%__MODULE__{base_url: base_url}, path, params \\ []) do
