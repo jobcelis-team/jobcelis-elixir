@@ -370,8 +370,8 @@ defmodule Jobcelis do
   @doc "Export all personal data (GDPR data portability)."
   defdelegate export_my_data(client), to: Client
 
-  @doc "Request restriction of data processing."
-  defdelegate restrict_processing(client), to: Client
+  @doc "Request restriction of data processing. The API asks for the account password."
+  defdelegate restrict_processing(client, password), to: Client
 
   @doc "Lift restriction on data processing."
   defdelegate lift_restriction(client), to: Client
@@ -389,6 +389,6 @@ defmodule Jobcelis do
   @doc "Check API health."
   defdelegate health(client), to: Client
 
-  @doc "Get platform status."
+  @doc "Get platform status (the JSON `/health` endpoint, same as `health/1`)."
   defdelegate status(client), to: Client
 end

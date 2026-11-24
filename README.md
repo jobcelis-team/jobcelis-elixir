@@ -178,7 +178,7 @@ client = Jobcelis.set_auth_token(client, new_session["token"])
 # Test a pipeline with a sample payload
 {:ok, result} = Jobcelis.test_pipeline(client, "pipe_abc123", %{
   topic: "order.created",
-  payload: %{id: "1"}
+  id: "1"
 })
 ```
 
@@ -309,7 +309,7 @@ File.write!("events.csv", csv_data)
 {:ok, my_data} = Jobcelis.export_my_data(client)
 
 # Processing restrictions
-{:ok, _} = Jobcelis.restrict_processing(client)
+{:ok, _} = Jobcelis.restrict_processing(client, "your-account-password")
 :ok = Jobcelis.lift_restriction(client)
 
 # Right to object
@@ -321,7 +321,7 @@ File.write!("events.csv", csv_data)
 
 ```elixir
 {:ok, health} = Jobcelis.health(client)
-{:ok, status} = Jobcelis.status(client)
+{:ok, status} = Jobcelis.status(client) # same JSON as health/1
 ```
 
 ## Error Handling
