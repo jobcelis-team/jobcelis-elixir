@@ -104,7 +104,7 @@ defmodule Jobcelis.Client do
   end
 
   def get_event(%__MODULE__{} = client, event_id) do
-    get(client, "/api/v1/events/#{event_id}")
+    get(client, "/api/v1/events/#{seg(event_id)}")
   end
 
   def list_events(%__MODULE__{} = client, opts \\ []) do
@@ -112,7 +112,7 @@ defmodule Jobcelis.Client do
   end
 
   def delete_event(%__MODULE__{} = client, event_id) do
-    do_delete(client, "/api/v1/events/#{event_id}")
+    do_delete(client, "/api/v1/events/#{seg(event_id)}")
   end
 
   # ---------------------------------------------------------------------------
@@ -133,7 +133,7 @@ defmodule Jobcelis.Client do
   end
 
   def get_webhook(%__MODULE__{} = client, webhook_id) do
-    get(client, "/api/v1/webhooks/#{webhook_id}")
+    get(client, "/api/v1/webhooks/#{seg(webhook_id)}")
   end
 
   def list_webhooks(%__MODULE__{} = client, opts \\ []) do
@@ -141,15 +141,15 @@ defmodule Jobcelis.Client do
   end
 
   def update_webhook(%__MODULE__{} = client, webhook_id, attrs) do
-    patch(client, "/api/v1/webhooks/#{webhook_id}", attrs)
+    patch(client, "/api/v1/webhooks/#{seg(webhook_id)}", attrs)
   end
 
   def delete_webhook(%__MODULE__{} = client, webhook_id) do
-    do_delete(client, "/api/v1/webhooks/#{webhook_id}")
+    do_delete(client, "/api/v1/webhooks/#{seg(webhook_id)}")
   end
 
   def webhook_health(%__MODULE__{} = client, webhook_id) do
-    get(client, "/api/v1/webhooks/#{webhook_id}/health")
+    get(client, "/api/v1/webhooks/#{seg(webhook_id)}/health")
   end
 
   def webhook_templates(%__MODULE__{} = client) do
@@ -157,7 +157,7 @@ defmodule Jobcelis.Client do
   end
 
   def test_webhook(%__MODULE__{} = client, webhook_id) do
-    post(client, "/api/v1/webhooks/#{webhook_id}/test", %{})
+    post(client, "/api/v1/webhooks/#{seg(webhook_id)}/test", %{})
   end
 
   # ---------------------------------------------------------------------------
@@ -169,7 +169,7 @@ defmodule Jobcelis.Client do
   end
 
   def retry_delivery(%__MODULE__{} = client, delivery_id) do
-    post(client, "/api/v1/deliveries/#{delivery_id}/retry", %{})
+    post(client, "/api/v1/deliveries/#{seg(delivery_id)}/retry", %{})
   end
 
   # ---------------------------------------------------------------------------
@@ -181,15 +181,15 @@ defmodule Jobcelis.Client do
   end
 
   def get_dead_letter(%__MODULE__{} = client, dead_letter_id) do
-    get(client, "/api/v1/dead-letters/#{dead_letter_id}")
+    get(client, "/api/v1/dead-letters/#{seg(dead_letter_id)}")
   end
 
   def retry_dead_letter(%__MODULE__{} = client, dead_letter_id) do
-    post(client, "/api/v1/dead-letters/#{dead_letter_id}/retry", %{})
+    post(client, "/api/v1/dead-letters/#{seg(dead_letter_id)}/retry", %{})
   end
 
   def resolve_dead_letter(%__MODULE__{} = client, dead_letter_id) do
-    patch(client, "/api/v1/dead-letters/#{dead_letter_id}/resolve", %{})
+    patch(client, "/api/v1/dead-letters/#{seg(dead_letter_id)}/resolve", %{})
   end
 
   # ---------------------------------------------------------------------------
@@ -207,11 +207,11 @@ defmodule Jobcelis.Client do
   end
 
   def get_replay(%__MODULE__{} = client, replay_id) do
-    get(client, "/api/v1/replays/#{replay_id}")
+    get(client, "/api/v1/replays/#{seg(replay_id)}")
   end
 
   def cancel_replay(%__MODULE__{} = client, replay_id) do
-    do_delete(client, "/api/v1/replays/#{replay_id}")
+    do_delete(client, "/api/v1/replays/#{seg(replay_id)}")
   end
 
   # ---------------------------------------------------------------------------
@@ -228,19 +228,19 @@ defmodule Jobcelis.Client do
   end
 
   def get_job(%__MODULE__{} = client, job_id) do
-    get(client, "/api/v1/jobs/#{job_id}")
+    get(client, "/api/v1/jobs/#{seg(job_id)}")
   end
 
   def update_job(%__MODULE__{} = client, job_id, attrs) do
-    patch(client, "/api/v1/jobs/#{job_id}", attrs)
+    patch(client, "/api/v1/jobs/#{seg(job_id)}", attrs)
   end
 
   def delete_job(%__MODULE__{} = client, job_id) do
-    do_delete(client, "/api/v1/jobs/#{job_id}")
+    do_delete(client, "/api/v1/jobs/#{seg(job_id)}")
   end
 
   def list_job_runs(%__MODULE__{} = client, job_id, opts \\ []) do
-    get(client, "/api/v1/jobs/#{job_id}/runs", opts)
+    get(client, "/api/v1/jobs/#{seg(job_id)}/runs", opts)
   end
 
   def cron_preview(%__MODULE__{} = client, expression, opts \\ []) do
@@ -262,19 +262,19 @@ defmodule Jobcelis.Client do
   end
 
   def get_pipeline(%__MODULE__{} = client, pipeline_id) do
-    get(client, "/api/v1/pipelines/#{pipeline_id}")
+    get(client, "/api/v1/pipelines/#{seg(pipeline_id)}")
   end
 
   def update_pipeline(%__MODULE__{} = client, pipeline_id, attrs) do
-    patch(client, "/api/v1/pipelines/#{pipeline_id}", attrs)
+    patch(client, "/api/v1/pipelines/#{seg(pipeline_id)}", attrs)
   end
 
   def delete_pipeline(%__MODULE__{} = client, pipeline_id) do
-    do_delete(client, "/api/v1/pipelines/#{pipeline_id}")
+    do_delete(client, "/api/v1/pipelines/#{seg(pipeline_id)}")
   end
 
   def test_pipeline(%__MODULE__{} = client, pipeline_id, payload) do
-    post(client, "/api/v1/pipelines/#{pipeline_id}/test", payload)
+    post(client, "/api/v1/pipelines/#{seg(pipeline_id)}/test", %{payload: payload})
   end
 
   # ---------------------------------------------------------------------------
@@ -291,15 +291,15 @@ defmodule Jobcelis.Client do
   end
 
   def get_event_schema(%__MODULE__{} = client, schema_id) do
-    get(client, "/api/v1/event-schemas/#{schema_id}")
+    get(client, "/api/v1/event-schemas/#{seg(schema_id)}")
   end
 
   def update_event_schema(%__MODULE__{} = client, schema_id, attrs) do
-    patch(client, "/api/v1/event-schemas/#{schema_id}", attrs)
+    patch(client, "/api/v1/event-schemas/#{seg(schema_id)}", attrs)
   end
 
   def delete_event_schema(%__MODULE__{} = client, schema_id) do
-    do_delete(client, "/api/v1/event-schemas/#{schema_id}")
+    do_delete(client, "/api/v1/event-schemas/#{seg(schema_id)}")
   end
 
   def validate_payload(%__MODULE__{} = client, topic, payload) do
@@ -320,11 +320,11 @@ defmodule Jobcelis.Client do
   end
 
   def delete_sandbox_endpoint(%__MODULE__{} = client, endpoint_id) do
-    do_delete(client, "/api/v1/sandbox-endpoints/#{endpoint_id}")
+    do_delete(client, "/api/v1/sandbox-endpoints/#{seg(endpoint_id)}")
   end
 
   def list_sandbox_requests(%__MODULE__{} = client, endpoint_id, opts \\ []) do
-    get(client, "/api/v1/sandbox-endpoints/#{endpoint_id}/requests", opts)
+    get(client, "/api/v1/sandbox-endpoints/#{seg(endpoint_id)}/requests", opts)
   end
 
   # ---------------------------------------------------------------------------
@@ -394,19 +394,19 @@ defmodule Jobcelis.Client do
   end
 
   def get_project_by_id(%__MODULE__{} = client, project_id) do
-    get(client, "/api/v1/projects/#{project_id}")
+    get(client, "/api/v1/projects/#{seg(project_id)}")
   end
 
   def update_project_by_id(%__MODULE__{} = client, project_id, attrs) do
-    patch(client, "/api/v1/projects/#{project_id}", attrs)
+    patch(client, "/api/v1/projects/#{seg(project_id)}", attrs)
   end
 
   def delete_project(%__MODULE__{} = client, project_id) do
-    do_delete(client, "/api/v1/projects/#{project_id}")
+    do_delete(client, "/api/v1/projects/#{seg(project_id)}")
   end
 
   def set_default_project(%__MODULE__{} = client, project_id) do
-    patch(client, "/api/v1/projects/#{project_id}/default", %{})
+    patch(client, "/api/v1/projects/#{seg(project_id)}/default", %{})
   end
 
   # ---------------------------------------------------------------------------
@@ -414,20 +414,20 @@ defmodule Jobcelis.Client do
   # ---------------------------------------------------------------------------
 
   def list_members(%__MODULE__{} = client, project_id) do
-    get(client, "/api/v1/projects/#{project_id}/members")
+    get(client, "/api/v1/projects/#{seg(project_id)}/members")
   end
 
   def add_member(%__MODULE__{} = client, project_id, email, opts \\ []) do
-    role = Keyword.get(opts, :role, "member")
-    post(client, "/api/v1/projects/#{project_id}/members", %{email: email, role: role})
+    role = Keyword.get(opts, :role, "viewer")
+    post(client, "/api/v1/projects/#{seg(project_id)}/members", %{email: email, role: role})
   end
 
   def update_member(%__MODULE__{} = client, project_id, member_id, role) do
-    patch(client, "/api/v1/projects/#{project_id}/members/#{member_id}", %{role: role})
+    patch(client, "/api/v1/projects/#{seg(project_id)}/members/#{seg(member_id)}", %{role: role})
   end
 
   def remove_member(%__MODULE__{} = client, project_id, member_id) do
-    do_delete(client, "/api/v1/projects/#{project_id}/members/#{member_id}")
+    do_delete(client, "/api/v1/projects/#{seg(project_id)}/members/#{seg(member_id)}")
   end
 
   # ---------------------------------------------------------------------------
@@ -439,11 +439,11 @@ defmodule Jobcelis.Client do
   end
 
   def accept_invitation(%__MODULE__{} = client, invitation_id) do
-    post(client, "/api/v1/invitations/#{invitation_id}/accept", %{})
+    post(client, "/api/v1/invitations/#{seg(invitation_id)}/accept", %{})
   end
 
   def reject_invitation(%__MODULE__{} = client, invitation_id) do
-    post(client, "/api/v1/invitations/#{invitation_id}/reject", %{})
+    post(client, "/api/v1/invitations/#{seg(invitation_id)}/reject", %{})
   end
 
   # ---------------------------------------------------------------------------
@@ -483,15 +483,15 @@ defmodule Jobcelis.Client do
   end
 
   def accept_consent(%__MODULE__{} = client, purpose) do
-    post(client, "/api/v1/me/consents/#{purpose}/accept", %{})
+    post(client, "/api/v1/me/consents/#{seg(purpose)}/accept", %{})
   end
 
   def export_my_data(%__MODULE__{} = client) do
     get(client, "/api/v1/me/data")
   end
 
-  def restrict_processing(%__MODULE__{} = client) do
-    post(client, "/api/v1/me/restrict", %{})
+  def restrict_processing(%__MODULE__{} = client, password) when is_binary(password) do
+    post(client, "/api/v1/me/restrict", %{password: password})
   end
 
   def lift_restriction(%__MODULE__{} = client) do
@@ -519,7 +519,7 @@ defmodule Jobcelis.Client do
   end
 
   def revoke_embed_token(%__MODULE__{} = client, id) do
-    do_delete(client, "/api/v1/embed/tokens/#{id}")
+    do_delete(client, "/api/v1/embed/tokens/#{seg(id)}")
   end
 
   # ---------------------------------------------------------------------------
@@ -551,7 +551,7 @@ defmodule Jobcelis.Client do
   end
 
   def update_retention_policy(%__MODULE__{} = client, policy) do
-    patch(client, "/api/v1/retention", policy)
+    patch(client, "/api/v1/retention", %{retention_policy: policy})
   end
 
   def preview_purge(%__MODULE__{} = client, params) do
@@ -570,13 +570,17 @@ defmodule Jobcelis.Client do
     get(client, "/health")
   end
 
+  # /status is the HTML status page; the JSON status lives at /health.
   def status(%__MODULE__{} = client) do
-    get(client, "/status")
+    get(client, "/health")
   end
 
   # ===========================================================================
   # Private HTTP helpers
   # ===========================================================================
+
+  # Percent-encodes a value used as one path segment.
+  defp seg(value), do: URI.encode(to_string(value), &URI.char_unreserved?/1)
 
   defp get(%__MODULE__{} = client, path, params \\ []) do
     request(client, :get, path, params: params)
